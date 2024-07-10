@@ -6,8 +6,9 @@ from PIL import Image
 import torch
 import torch.nn as nn
 from transformers import ViTForImageClassification, ViTFeatureExtractor, TrainingArguments, Trainer, DefaultDataCollator
-
-
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
+import numpy as np
 
 # Define paths
 train_path = "/data/talya/deep-learning-course-project/Skin cancer ISIC The International Skin Imaging Collaboration/Train"
@@ -130,3 +131,36 @@ trainer.train()
 # Evaluate the model
 results = trainer.evaluate()
 print(results)
+
+# Generate detailed evaluation report
+def evaluate_model(trainer, test_dataset_hf):
+    # Get predictions
+    predictions = trainer.predict(test_dataset_hf)
+    preds = np.argmax(predictions.predictions, axis=1)
+    labels = predictions.label_ids
+
+    # Classification report
+    report = classification_report(labels, preds, target_names=[key for key in train_dataset.label_map])
+    print(report)
+
+    # Save classification report to file
+    with open("classification_report.txt", "w") as f:
+        f.write(report)
+
+    # Save some example predictions
+    correct_preds = np.where(preds == labels)[0]
+    incorrect_preds = np.where(preds != labels)[0]
+
+    def save_examples(indices, prefix):
+        for i in indices[:5]:  # Save first 5 examples
+            img_path = test_dataset.images[i]
+            img = Image.open(img_path)
+            plt.imshow(img)
+            plt.title(f"True: {labels[i]}, Pred: {preds[i]}")
+            plt.savefig(f"{prefix}_example_{i}.png")
+            plt.close()
+
+    save_examples(correct_preds, "correct")
+    save_examples(incorrect_preds, "incorrect")
+
+evaluate_model(trainer, test_dataset_hf)
