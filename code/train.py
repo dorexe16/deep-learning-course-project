@@ -152,7 +152,7 @@ def evaluate_model(trainer, test_dataset_hf):
     incorrect_preds = np.where(preds != labels)[0]
 
     def save_examples(indices, prefix):
-        for i in indices[:5]:  # Save first 5 examples
+        for i in indices[:10]:  # Save first 5 examples
             img_path = test_dataset.images[i]
             img = Image.open(img_path)
             plt.imshow(img)
