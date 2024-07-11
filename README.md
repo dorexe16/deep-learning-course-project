@@ -22,3 +22,17 @@ To train the model, run the `train.py` file. This script handles data preprocess
 ```bash
 python train.py
 ```
+
+## GIT 
+
+`git clone https://github.com/talyabs/deep-learning-course-project.git`
+
+- new branch
+`git checkout -b develop`
+
+1. make a change to file
+2. Add it with + 
+3. commit message - upper left, buttom commit
+4. `git push` /  `git push --set-upstream origin develop`
+5. PR + merge
+6. pull changes `git pull` 
