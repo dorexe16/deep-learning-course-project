@@ -8,9 +8,12 @@ __pycache__/
 
 # Images
 *.jpg
+*.png
 
 # Distribution / packaging
 .Python
+logs/
+results/
 build/
 develop-eggs/
 dist/

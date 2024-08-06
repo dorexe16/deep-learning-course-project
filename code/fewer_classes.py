@@ -40,6 +40,8 @@ train_transform = transforms.Compose([
     transforms.RandomRotation(degrees=15),   # Randomly rotate images by ±15 degrees
     transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),  # Random color adjustments
     transforms.RandomGrayscale(p=0.1),       # Convert images to grayscale with a probability
+    transforms.RandomApply([transforms.GaussianBlur(3)], p=0.1),  # Random Gaussian blur
+    transforms.RandomApply([transforms.RandomAffine(degrees=0, translate=(0.1, 0.1))], p=0.1),  # Random affine transformations
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
@@ -49,82 +51,6 @@ val_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-
-# Load the DTD dataset
-dtd_data_train = datasets.DTD(root="./data", split="train", download=True, transform=train_transform)
-dtd_data_val = datasets.DTD(root="./data", split="train", download=True, transform=val_transform)
-
-# To overfit, select a small subset of the dataset
-num_samples = 500
-train_indices = random.sample(range(len(dtd_data_train)), num_samples)
-train_data = Subset(dtd_data_train, train_indices)
-
-# Use a different subset for evaluation
-val_indices = random.sample(range(len(dtd_data_val)), num_samples)
-val_data = Subset(dtd_data_val, val_indices)
-
-# Create data loaders
-train_loader = DataLoader(train_data, batch_size=16, shuffle=True)
-val_loader = DataLoader(val_data, batch_size=16, shuffle=False)
-
-# Custom data collator
-def collate_fn(batch):
-    images, labels = zip(*batch)
-    images = torch.stack(images)
-    labels = torch.tensor(labels)
-    return {"pixel_values": images, "labels": labels}
-
-# Load pretrained ViT model
-model = ViTForImageClassification.from_pretrained(
-    "google/vit-base-patch16-224-in21k",
-    num_labels=47
-).to(device)
-
-# Training arguments
-training_args = TrainingArguments(
-    output_dir="./results",
-    evaluation_strategy="epoch",
-    learning_rate=0.000001,
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    num_train_epochs=75,
-    weight_decay=0.01,
-    logging_dir="./logs",
-    logging_steps=10,
-    save_strategy="epoch",
-    load_best_model_at_end=True,
-    metric_for_best_model="accuracy"
-)
-
-# Custom evaluation function to compute accuracy
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
-    accuracy = (predictions == labels).mean()
-    return {"accuracy": accuracy}
-
-# Define Trainer with custom data collator
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_data,
-    eval_dataset=val_data,
-    data_collator=collate_fn,
-    compute_metrics=compute_metrics
-)
-
-# Fine-tune the model
-trainer.train()
-
-# Evaluate the model on the validation set
-results = trainer.evaluate()
-print("Validation Accuracy:", results["eval_accuracy"])
-model.save_pretrained("./overfitted_vit_model")
-
-#------------------------------------------------------------------------fine tune
-
-train_path = "/data/talya/deep-learning-course-project/Skin cancer ISIC The International Skin Imaging Collaboration/Train"
-test_path = "/data/talya/deep-learning-course-project/Skin cancer ISIC The International Skin Imaging Collaboration/Test"
 
 # Define custom elastic deformation transformation
 class ElasticTransform:
@@ -138,8 +64,8 @@ class ElasticTransform:
         img = self.augmenter(image=img)
         return Image.fromarray(img)
 
-# Define transformations
-transform = transforms.Compose([
+# Define transformations for the Skin Cancer Dataset
+skin_cancer_transform = transforms.Compose([
     ElasticTransform(alpha=36, sigma=6),  # Apply elastic deformation
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -156,8 +82,7 @@ class SkinCancerDataset(Dataset):
         self.label_map = {
             'non-melanoma skin cancer': 0,
             'benign lesion': 1,
-            'pre-malignant/malignant': 2,
-            'vascular lesion': 3
+            'pre-malignant/malignant': 2
         }
         class_mapping = {
             'actinic keratosis': 'pre-malignant/malignant',
@@ -167,8 +92,7 @@ class SkinCancerDataset(Dataset):
             'nevus': 'benign lesion',
             'pigmented benign keratosis': 'benign lesion',
             'seborrheic keratosis': 'benign lesion',
-            'squamous cell carcinoma': 'non-melanoma skin cancer',
-            'vascular lesion': 'vascular lesion'
+            'squamous cell carcinoma': 'non-melanoma skin cancer'
         }
 
         for original_label in os.listdir(root_dir):
@@ -192,8 +116,19 @@ class SkinCancerDataset(Dataset):
 
         return {"pixel_values": image, "labels": label}
 
-train_dataset = SkinCancerDataset(root_dir=train_path, transform=transform)
-test_dataset = SkinCancerDataset(root_dir=test_path, transform=transform)
+# Create datasets and dataloaders
+train_dataset = SkinCancerDataset(root_dir=train_path, transform=skin_cancer_transform)
+test_dataset = SkinCancerDataset(root_dir=test_path, transform=skin_cancer_transform)
+
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+
+# Calculate class weights
+class_counts = Counter(train_dataset.labels)
+class_weights = {class_id: 1.0 / count for class_id, count in class_counts.items()}
+weights = [class_weights[label] for label in train_dataset.labels]
+sample_weights = torch.tensor(weights, dtype=torch.float)
+weighted_sampler = torch.utils.data.WeightedRandomSampler(sample_weights, len(sample_weights))
 
 # Custom trainer
 class CustomTrainer(Trainer):
@@ -201,11 +136,11 @@ class CustomTrainer(Trainer):
         labels = inputs.pop("labels").to(device)
         outputs = model(**inputs)
         logits = outputs.logits
-        loss = nn.CrossEntropyLoss()(logits, labels)
+        loss = nn.CrossEntropyLoss(weight=torch.tensor(list(class_weights.values())).to(logits.device))(logits, labels)
         return (loss, outputs) if return_outputs else loss
 
 # Load the saved model
-fine_tuned_model = ViTForImageClassification.from_pretrained("./overfitted_vit_model", num_labels=4, ignore_mismatched_sizes=True)
+fine_tuned_model = ViTForImageClassification.from_pretrained("./overfitted_vit_model", num_labels=3, ignore_mismatched_sizes=True)
 fine_tuned_model.to(device)
 
 # Adjust training arguments for fine-tuning
@@ -237,12 +172,13 @@ def evaluate_model(trainer, test_dataset):
     preds = np.argmax(predictions.predictions, axis=1)
     labels = predictions.label_ids
 
-    all_labels = range(4)  # Ensure this matches the number of classes
+    # Define the class names
+    class_names = ['non-melanoma skin cancer', 'benign lesion', 'pre-malignant/malignant']
+
     report = classification_report(
         labels,
         preds,
-        labels=all_labels,  # Specify all possible labels
-        target_names=[f"Class_{i}" for i in all_labels],
+        target_names=class_names,  # Specify class names
         zero_division=0  # Handle classes with no predicted samples
     )
     print(report)
@@ -265,11 +201,11 @@ def evaluate_model(trainer, test_dataset):
             true_label = labels[i]
             pred_label = preds[i]
             plt.imshow(img)
-            plt.title(f"True: {true_label}, Pred: {pred_label}")
+            plt.title(f"True: {class_names[true_label]}, Pred: {class_names[pred_label]}")
             plt.axis('off')
             plt.savefig(f"{prefix}_example_{i}.png")
             plt.close()
-
+            
 # Fine-tune the model
 fine_tuner.train()
 evaluate_model(fine_tuner, test_dataset)
