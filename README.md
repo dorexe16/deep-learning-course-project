@@ -2,6 +2,9 @@
 
 This project focuses on fine-tuning a Vision Transformer (ViT) model on a skin cancer dataset to classify different types of skin lesions. The dataset contains images of various skin cancer types, including malignant and benign oncological diseases.
 
+## Project Paper
+For a comprehensive report on this project, please refer to the detailed documentation available [here](https://drive.google.com/file/d/1mYneHIUhG3CSwv1B2REelfqYNDUljsXg/view?usp=sharing).
+
 ## Dataset
 
 The dataset used for this project 
@@ -25,8 +28,8 @@ We conduct a few different experiments
 - ViT Hybrid Model
 - ViT direct finetune
 - Ensemble model with EfficientNet
-All the different methods are in the `code` folder. 
-To train the model, run one of the `train_x.py` files. This script handles data preprocessing, model training, and evaluation.
+<br>All the different methods are in the `code` folder. 
+<br>To train the model, run one of the `train_x.py` files. This script handles data preprocessing, model training, and evaluation.
 
 ```bash
 python train_x.py
