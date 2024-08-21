@@ -8,9 +8,26 @@ __pycache__/
 
 # Images
 *.jpg
+*.png
+
+*.txt
+*.bin
+*.json
+*.pt
+*.pth
+*.safetensors
+*.pkl
+*.tfevents
+*.mat
+*.run
+
 
 # Distribution / packaging
 .Python
+data/
+fine_tuned_logs/
+logs/
+results/
 build/
 develop-eggs/
 dist/
