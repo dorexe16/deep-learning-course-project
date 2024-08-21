@@ -4,7 +4,9 @@ This project focuses on fine-tuning a Vision Transformer (ViT) model on a skin c
 
 ## Dataset
 
-The dataset used for this project is available on Kaggle: [Skin Cancer 9 Classes ISIC](https://www.kaggle.com/datasets/nodoubttome/skin-cancer9-classesisic).
+The dataset used for this project 
+1. Subset from ISIC on Kaggle: [Skin Cancer 9 Classes ISIC - Kaggle Subset](https://www.kaggle.com/datasets/nodoubttome/skin-cancer9-classesisic).
+2. ISIC 2019 Challange dataset: [Skin Cancer 9 Classes ISIC - 2019 Dataset](https://challenge.isic-archive.com/data/#2019).
 
 
 ## Create Virtual Envioment with Conda
@@ -17,10 +19,17 @@ pip install -r requirements.txt
 
 ## How to Train
 
-To train the model, run the `train.py` file. This script handles data preprocessing, model training, and evaluation.
+We conduct a few different experiments 
+- class reduction
+- Transfer Learning on DTD
+- ViT Hybrid Model
+- ViT direct finetune
+- Ensemble model with EfficientNet
+All the different methods are in the `code` folder. 
+To train the model, run one of the `train_x.py` files. This script handles data preprocessing, model training, and evaluation.
 
 ```bash
-python train.py
+python train_x.py
 ```
 
 ## GIT 
